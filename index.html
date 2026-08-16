@@ -1,15 +1,26 @@
 <!DOCTYPE html>
 <!-- 
-    JOGO DA COBRINHA (Snake Game)
-    ==============================
+    JOGO DA COBRINHA (Snake Game) - Versão Responsiva com Toque
+    ==============================================================
     Este arquivo contém tudo que o jogo precisa: HTML (estrutura), 
     CSS (estilo/aparência) e JavaScript (lógica do jogo), tudo em um único arquivo.
+    
+    NOVIDADES desta versão:
+    - O tabuleiro (canvas) se adapta ao tamanho da tela do dispositivo
+    - Funciona em celulares: pode-se jogar arrastando o dedo (swipe) na tela
+    - Também tem botões de seta na tela, para quem preferir tocar em vez de arrastar
+    - Layout organizado com Flexbox para ocupar toda a altura da tela disponível
+    
     Os comentários explicam cada parte para te ajudar a aprender!
 -->
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Jogo da Cobrinha</title>
+    <!-- viewport: essencial para responsividade em celulares.
+         "width=device-width" faz a página usar a largura real do aparelho.
+         "user-scalable=no" evita que o usuário dê zoom sem querer ao tocar rápido na tela (double-tap) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Jogo da Cobrinha LÍVIA</title>
     <style>
         /* ===== ESTILOS (CSS) =====
            CSS é responsável pela aparência visual da página */
@@ -19,57 +30,138 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box; /* faz o tamanho do elemento incluir borda e padding */
+            /* Evita que o navegador mostre aquele "flash" azul/cinza ao tocar em elementos no celular */
+            -webkit-tap-highlight-color: transparent;
+            /* Impede o comportamento padrão de "arrastar para rolar a página" dentro dos elementos do jogo */
+            touch-action: manipulation;
+        }
+
+        html, body {
+            /* 100% + 100dvh: "dvh" (dynamic viewport height) é uma unidade pensada para celulares,
+               que já desconta a barra de endereço do navegador. Isso evita que o jogo "vaze"
+               para fora da tela em navegadores mobile. Navegadores antigos ignoram dvh e usam
+               apenas a altura normal, então colocamos 100% como alternativa (fallback) antes. */
+            height: 100%;
+            overflow: hidden; /* impede rolagem da página - queremos o jogo fixo na tela */
         }
 
         body {
-            /* Centraliza todo o conteúdo da página, tanto na vertical quanto na horizontal */
+            /* Organiza os elementos em coluna, um embaixo do outro, ocupando toda a tela */
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            min-height: 100vh; /* ocupa a altura total da tela */
+            height: 100vh;
+            height: 100dvh; /* substitui o valor acima em navegadores que suportam dvh */
             background: #1e1e2f; /* cor de fundo escura */
             font-family: Arial, sans-serif;
             color: #ffffff;
+            /* Respeita as "áreas seguras" de celulares com notch/entalhe (iPhone, por exemplo) */
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        /* ===== CABEÇALHO (título + placar) =====
+           Fica sempre no topo, com altura fixa/pequena */
+        #cabecalho {
+            width: 100%;
+            text-align: center;
+            padding: 6px 10px;
+            flex-shrink: 0; /* nunca encolhe, mesmo se faltar espaço */
         }
 
         h1 {
-            margin-bottom: 10px;
-            letter-spacing: 2px;
+            font-size: clamp(16px, 4vw, 22px); /* tamanho de fonte que se adapta ao tamanho da tela */
+            letter-spacing: 1px;
         }
 
-        /* Painel que mostra a pontuação */
         #placar {
-            font-size: 20px;
-            margin-bottom: 10px;
+            font-size: clamp(13px, 3vw, 16px);
+            color: #cfcfcf;
         }
 
-        /* O elemento <canvas> é onde vamos DESENHAR o jogo usando JavaScript */
+        /* ===== ÁREA DO JOGO =====
+           "flex: 1" faz essa área crescer e ocupar TODO o espaço restante da tela,
+           empurrando o cabeçalho para cima e os controles (no celular) para baixo */
+        #areaDoJogo {
+            flex: 1;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 0; /* truque necessário para o flexbox permitir que essa área encolha corretamente */
+            padding: 8px;
+        }
+
+        /* O elemento <canvas> é onde vamos DESENHAR o jogo usando JavaScript.
+           Não definimos largura/altura fixas aqui: o tamanho é calculado
+           dinamicamente pelo JavaScript, para preencher o espaço disponível
+           mantendo o tabuleiro sempre quadrado. */
         canvas {
             background: #0f0f1a;
-            border: 4px solid #4caf50; /* borda verde ao redor do tabuleiro */
+            border: 3px solid #4caf50; /* borda verde ao redor do tabuleiro */
             border-radius: 8px;
+            touch-action: none; /* impede que o dedo "arraste a página" ao jogar no canvas */
         }
 
         #mensagem {
-            margin-top: 15px;
-            font-size: 18px;
-            min-height: 24px; /* reserva espaço para não "pular" o layout quando o texto aparecer */
+            text-align: center;
+            font-size: clamp(13px, 3.5vw, 16px);
+            min-height: 20px; /* reserva espaço para não "pular" o layout quando o texto aparecer */
             color: #ff5252;
             font-weight: bold;
+            padding: 0 10px;
+        }
+
+        /* ===== CONTROLES DE TOQUE (D-Pad) =====
+           Cruz de botões (cima/baixo/esquerda/direita) para jogar tocando na tela.
+           Usamos CSS Grid para organizar os botões em formato de "cruz" (3 colunas x 2 linhas). */
+        #controlesToque {
+            flex-shrink: 0;
+            display: grid;
+            grid-template-columns: 60px 60px 60px;
+            grid-template-rows: 60px 60px;
+            gap: 6px;
+            justify-content: center;
+            padding: 8px 0;
+        }
+
+        #controlesToque button {
+            font-size: 22px;
+            background: #2a2a40;
+            border: 2px solid #4caf50;
+            border-radius: 10px;
+            color: white;
+            /* Efeito visual ao tocar (feedback tátil-visual), importante em telas de toque */
+            transition: background 0.1s ease;
+        }
+
+        #controlesToque button:active {
+            background: #4caf50; /* fica verde ao ser pressionado, dando feedback imediato ao jogador */
+        }
+
+        /* Posiciona cada botão dentro da "cruz" usando as linhas/colunas do grid */
+        #botaoCima      { grid-column: 2; grid-row: 1; }
+        #botaoEsquerda  { grid-column: 1; grid-row: 2; }
+        #botaoBaixo     { grid-column: 2; grid-row: 2; }
+        #botaoDireita   { grid-column: 3; grid-row: 2; }
+
+        /* ===== RODAPÉ (instruções + botão reiniciar) ===== */
+        #rodape {
+            flex-shrink: 0;
+            width: 100%;
+            text-align: center;
+            padding: 4px 10px 10px;
         }
 
         #instrucoes {
-            margin-top: 10px;
-            font-size: 14px;
+            font-size: clamp(11px, 2.8vw, 13px);
             color: #aaaaaa;
-            text-align: center;
+            margin-bottom: 8px;
         }
 
-        button {
-            margin-top: 12px;
-            padding: 8px 20px;
-            font-size: 16px;
+        button#botaoReiniciar {
+            padding: 8px 22px;
+            font-size: 15px;
             background: #4caf50;
             border: none;
             border-radius: 6px;
@@ -77,68 +169,127 @@
             cursor: pointer;
         }
 
-        button:hover {
+        button#botaoReiniciar:active {
             background: #45a049;
+        }
+
+        /* ===== RESPONSIVIDADE =====
+           Em telas LARGAS (computador/tablet na horizontal), escondemos o D-pad de toque,
+           já que quem está no computador normalmente prefere o teclado.
+           "pointer: coarse" detecta se o dispositivo principal é "de toque" (dedo) e não mouse. */
+        @media (hover: hover) and (pointer: fine) {
+            #controlesToque {
+                display: none;
+            }
         }
     </style>
 </head>
 <body>
 
-    <h1>🐍 Jogo da Cobrinha</h1>
-    <div id="placar">Pontos: 0 | Recorde: 0</div>
+    <!-- ===== CABEÇALHO ===== -->
+    <div id="cabecalho">
+        <h1>🐍 Jogo da Cobrinha</h1>
+        <div id="placar">Pontos: 0 | Recorde: 0</div>
+    </div>
 
-    <!-- O canvas é a "tela" onde o jogo será desenhado -->
-    <canvas id="tabuleiro" width="400" height="400"></canvas>
+    <!-- ===== ÁREA DO JOGO (o canvas fica centralizado aqui) ===== -->
+    <div id="areaDoJogo">
+        <canvas id="tabuleiro"></canvas>
+    </div>
 
     <div id="mensagem"></div>
-    <button id="botaoReiniciar">Reiniciar Jogo</button>
-    <div id="instrucoes">
-        Use as setas do teclado (↑ ↓ ← →) ou W A S D para mover a cobrinha.<br>
-        Coma os pontos vermelhos para crescer. Não bata nas paredes nem em você mesmo!
+
+    <!-- ===== CONTROLES DE TOQUE (D-Pad) - só aparece em telas de toque, via CSS ===== -->
+    <div id="controlesToque">
+        <button id="botaoCima" aria-label="Mover para cima">▲</button>
+        <button id="botaoEsquerda" aria-label="Mover para esquerda">◀</button>
+        <button id="botaoBaixo" aria-label="Mover para baixo">▼</button>
+        <button id="botaoDireita" aria-label="Mover para direita">▶</button>
+    </div>
+
+    <!-- ===== RODAPÉ ===== -->
+    <div id="rodape">
+        <div id="instrucoes">
+            Deslize o dedo sobre o tabuleiro, use os botões ▲▼◀▶, ou as setas/WASD do teclado.
+        </div>
+        <button id="botaoReiniciar">Reiniciar Jogo</button>
     </div>
 
     <script>
         /* ===== LÓGICA DO JOGO (JavaScript) =====
            Aqui é onde tudo acontece: desenhar a cobrinha, mover ela,
-           detectar colisões, gerar comida, etc. */
+           detectar colisões, gerar comida, calcular o tamanho da tela, etc. */
 
         // Pega a referência do elemento <canvas> do HTML e o seu "contexto de desenho" 2D
-        // O "contexto" é o objeto que nos dá os comandos para desenhar (retângulos, cores, etc)
         const canvas = document.getElementById("tabuleiro");
         const ctx = canvas.getContext("2d");
 
-        // Pega referências de outros elementos do HTML que vamos atualizar via JS
+        // Referências de outros elementos do HTML que vamos atualizar via JS
+        const areaDoJogo = document.getElementById("areaDoJogo");
         const placarElemento = document.getElementById("placar");
         const mensagemElemento = document.getElementById("mensagem");
         const botaoReiniciar = document.getElementById("botaoReiniciar");
 
         // ===== CONFIGURAÇÕES DO JOGO =====
-        const TAMANHO_CELULA = 20;        // tamanho (em pixels) de cada "quadradinho" do tabuleiro
-        const COLUNAS = canvas.width / TAMANHO_CELULA;   // quantidade de colunas no tabuleiro (400/20 = 20)
-        const LINHAS = canvas.height / TAMANHO_CELULA;   // quantidade de linhas no tabuleiro (400/20 = 20)
+        // Em vez de um tabuleiro de tamanho fixo em pixels, definimos a quantidade
+        // de "quadradinhos" (colunas/linhas) que o tabuleiro terá. O tamanho em pixels
+        // de cada quadradinho é calculado dinamicamente, de acordo com o espaço da tela.
+        const NUMERO_DE_CELULAS = 20;     // o tabuleiro terá 20x20 quadradinhos, sempre
         const VELOCIDADE_INICIAL = 150;   // tempo (ms) entre cada "passo" da cobrinha. Menor = mais rápido.
 
-        // ===== VARIÁVEIS DE ESTADO DO JOGO =====
-        // Essas variáveis guardam a "situação atual" do jogo e mudam com o tempo
+        let TAMANHO_CELULA;    // calculado dinamicamente em ajustarTamanhoDoCanvas()
 
+        // ===== VARIÁVEIS DE ESTADO DO JOGO =====
         let cobrinha;          // array de objetos {x, y} representando cada segmento do corpo da cobrinha
         let direcao;           // direção atual do movimento: "cima", "baixo", "esquerda" ou "direita"
-        let proximaDirecao;    // guarda a próxima direção escolhida pelo jogador (evita bugs de virar 2x no mesmo frame)
+        let proximaDirecao;    // guarda a próxima direção escolhida pelo jogador
         let comida;            // posição {x, y} da comida atual
         let pontos;            // pontuação atual
         let recorde = 0;       // melhor pontuação já alcançada nesta sessão
-        let velocidadeAtual;   // velocidade atual do jogo (diminui conforme o jogador ganha pontos, ficando mais difícil)
-        let jogoRodando;       // booleano: true se o jogo está em andamento, false se acabou
+        let velocidadeAtual;   // velocidade atual do jogo (aumenta com os pontos)
+        let jogoRodando;       // booleano: true se o jogo está em andamento
         let idIntervalo;       // guarda a referência do "setInterval" para podermos pará-lo depois
+
+        // ===== FUNÇÃO: ajustarTamanhoDoCanvas =====
+        // Calcula o maior tamanho quadrado que cabe na área disponível da tela,
+        // e redimensiona o canvas para preenchê-la. É chamada ao carregar a página
+        // e sempre que a tela for redimensionada ou o celular for girado.
+        function ajustarTamanhoDoCanvas() {
+            // Pega o espaço disponível (em pixels) dentro da div "areaDoJogo"
+            const larguraDisponivel = areaDoJogo.clientWidth;
+            const alturaDisponivel = areaDoJogo.clientHeight;
+
+            // Usamos o MENOR entre largura e altura, para que o tabuleiro
+            // continue sempre um quadrado perfeito (nunca "esticado")
+            const menorLado = Math.min(larguraDisponivel, alturaDisponivel);
+
+            // Subtraímos uma pequena margem (padding) para o tabuleiro não colar nas bordas
+            const tamanhoFinal = Math.floor((menorLado - 16) / NUMERO_DE_CELULAS) * NUMERO_DE_CELULAS;
+
+            canvas.width = tamanhoFinal;
+            canvas.height = tamanhoFinal;
+
+            // Recalcula o tamanho de cada quadradinho com base no novo tamanho do canvas
+            TAMANHO_CELULA = tamanhoFinal / NUMERO_DE_CELULAS;
+
+            // Redesenha o jogo com o novo tamanho (se já estiver em andamento),
+            // para a tela não ficar em branco até o próximo passo do jogo
+            if (cobrinha) {
+                desenharTudo();
+            }
+        }
 
         // ===== FUNÇÃO: iniciarJogo =====
         // Prepara (ou reinicia) todas as variáveis para começar uma nova partida
         function iniciarJogo() {
+            ajustarTamanhoDoCanvas(); // garante que o tamanho do tabuleiro está correto antes de começar
+
             // A cobrinha começa com 3 segmentos, no meio do tabuleiro
+            const centro = Math.floor(NUMERO_DE_CELULAS / 2);
             cobrinha = [
-                { x: 10, y: 10 },
-                { x: 9, y: 10 },
-                { x: 8, y: 10 }
+                { x: centro, y: centro },
+                { x: centro - 1, y: centro },
+                { x: centro - 2, y: centro }
             ];
 
             direcao = "direita";        // a cobrinha começa andando para a direita
@@ -152,11 +303,12 @@
             atualizarPlacar();
 
             // Se já existia um intervalo rodando (de uma partida anterior), cancela ele
-            // para não termos dois "loops" do jogo rodando ao mesmo tempo
             if (idIntervalo) clearInterval(idIntervalo);
 
             // setInterval chama a função "passoDoJogo" repetidamente, a cada X milissegundos
             idIntervalo = setInterval(passoDoJogo, velocidadeAtual);
+
+            desenharTudo();
         }
 
         // ===== FUNÇÃO: gerarComida =====
@@ -168,11 +320,10 @@
             // Repete o sorteio até encontrar uma posição que NÃO esteja em cima da cobrinha
             while (!posicaoValida) {
                 novaComida = {
-                    x: Math.floor(Math.random() * COLUNAS), // número aleatório entre 0 e COLUNAS-1
-                    y: Math.floor(Math.random() * LINHAS)
+                    x: Math.floor(Math.random() * NUMERO_DE_CELULAS),
+                    y: Math.floor(Math.random() * NUMERO_DE_CELULAS)
                 };
 
-                // Verifica se essa posição colide com algum segmento da cobrinha
                 posicaoValida = !cobrinha.some(
                     segmento => segmento.x === novaComida.x && segmento.y === novaComida.y
                 );
@@ -182,12 +333,11 @@
         }
 
         // ===== FUNÇÃO: passoDoJogo =====
-        // Essa é a função principal, chamada repetidamente pelo setInterval.
-        // A cada chamada, ela: move a cobrinha, checa colisões, checa se comeu, e redesenha a tela.
+        // Função principal, chamada repetidamente pelo setInterval.
+        // A cada chamada: move a cobrinha, checa colisões, checa se comeu, e redesenha a tela.
         function passoDoJogo() {
             direcao = proximaDirecao; // aplica a direção escolhida pelo jogador desde o último passo
 
-            // Calcula a nova posição da "cabeça" da cobrinha, baseada na direção atual
             const cabecaAtual = cobrinha[0];
             let novaCabeca = { x: cabecaAtual.x, y: cabecaAtual.y };
 
@@ -198,11 +348,11 @@
 
             // ===== VERIFICAÇÃO DE COLISÃO COM AS PAREDES =====
             if (
-                novaCabeca.x < 0 || novaCabeca.x >= COLUNAS ||
-                novaCabeca.y < 0 || novaCabeca.y >= LINHAS
+                novaCabeca.x < 0 || novaCabeca.x >= NUMERO_DE_CELULAS ||
+                novaCabeca.y < 0 || novaCabeca.y >= NUMERO_DE_CELULAS
             ) {
                 fimDeJogo();
-                return; // encerra a função aqui, não continua o resto do código
+                return;
             }
 
             // ===== VERIFICAÇÃO DE COLISÃO COM O PRÓPRIO CORPO =====
@@ -225,25 +375,23 @@
                 atualizarPlacar();
                 gerarComida();
 
-                // A cada 50 pontos, aumenta um pouco a velocidade do jogo (deixa mais difícil)
+                // A cada 50 pontos, aumenta um pouco a velocidade do jogo
                 if (pontos % 50 === 0 && velocidadeAtual > 60) {
                     velocidadeAtual -= 10;
                     clearInterval(idIntervalo);
                     idIntervalo = setInterval(passoDoJogo, velocidadeAtual);
                 }
             } else {
-                // Se NÃO comeu, remove o último segmento da cauda,
-                // criando a ilusão de movimento (a cobrinha "anda" em vez de só crescer)
+                // Se NÃO comeu, remove o último segmento da cauda (efeito de movimento)
                 cobrinha.pop();
             }
 
-            desenharTudo(); // redesenha o tabuleiro com a nova posição da cobrinha
+            desenharTudo();
         }
 
         // ===== FUNÇÃO: desenharTudo =====
         // Responsável por limpar e redesenhar todo o conteúdo do canvas a cada passo
         function desenharTudo() {
-            // Limpa o canvas inteiro antes de redesenhar (senão os desenhos antigos ficariam sobrepostos)
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
             // --- Desenha a comida (um quadrado vermelho) ---
@@ -267,7 +415,7 @@
                     TAMANHO_CELULA
                 );
 
-                // Desenha uma borda escura em volta de cada segmento, para diferenciar os quadrados
+                // Desenha uma borda escura em volta de cada segmento
                 ctx.strokeStyle = "#0f0f1a";
                 ctx.strokeRect(
                     segmento.x * TAMANHO_CELULA,
@@ -279,7 +427,6 @@
         }
 
         // ===== FUNÇÃO: atualizarPlacar =====
-        // Atualiza o texto do placar na tela com os pontos e o recorde atuais
         function atualizarPlacar() {
             if (pontos > recorde) {
                 recorde = pontos;
@@ -288,36 +435,85 @@
         }
 
         // ===== FUNÇÃO: fimDeJogo =====
-        // Chamada quando a cobrinha bate na parede ou nela mesma
         function fimDeJogo() {
             jogoRodando = false;
-            clearInterval(idIntervalo); // para o loop do jogo
-            mensagemElemento.textContent = "Fim de jogo! Clique em 'Reiniciar Jogo' para tentar de novo.";
+            clearInterval(idIntervalo);
+            mensagemElemento.textContent = "Fim de jogo! Toque em 'Reiniciar Jogo' para tentar de novo.";
         }
 
-        // ===== CAPTURA DE TECLADO =====
-        // "escuta" o evento de tecla pressionada em todo o documento
-        document.addEventListener("keydown", (evento) => {
-            if (!jogoRodando) return; // ignora teclas se o jogo já acabou
+        // ===== FUNÇÃO: mudarDirecao =====
+        // Função central usada tanto pelo teclado quanto pelos botões de toque e pelo swipe,
+        // para evitar repetir a mesma lógica em três lugares diferentes.
+        // O parâmetro "novaDirecao" é uma string: "cima", "baixo", "esquerda" ou "direita".
+        function mudarDirecao(novaDirecao) {
+            if (!jogoRodando) return;
 
+            // Impede que a cobrinha vire 180 graus instantaneamente
+            // (o que faria ela colidir com o próprio pescoço)
+            const opostos = { cima: "baixo", baixo: "cima", esquerda: "direita", direita: "esquerda" };
+            if (opostos[novaDirecao] === direcao) return;
+
+            proximaDirecao = novaDirecao;
+        }
+
+        // ===== CAPTURA DE TECLADO (para quem estiver no computador) =====
+        document.addEventListener("keydown", (evento) => {
             const tecla = evento.key;
 
-            // Setas do teclado ou WASD, com verificação para impedir que a cobrinha
-            // vire 180 graus instantaneamente (o que causaria uma colisão consigo mesma)
-            if ((tecla === "ArrowUp" || tecla === "w" || tecla === "W") && direcao !== "baixo") {
-                proximaDirecao = "cima";
-            } else if ((tecla === "ArrowDown" || tecla === "s" || tecla === "S") && direcao !== "cima") {
-                proximaDirecao = "baixo";
-            } else if ((tecla === "ArrowLeft" || tecla === "a" || tecla === "A") && direcao !== "direita") {
-                proximaDirecao = "esquerda";
-            } else if ((tecla === "ArrowRight" || tecla === "d" || tecla === "D") && direcao !== "esquerda") {
-                proximaDirecao = "direita";
-            }
+            if (tecla === "ArrowUp" || tecla === "w" || tecla === "W") mudarDirecao("cima");
+            else if (tecla === "ArrowDown" || tecla === "s" || tecla === "S") mudarDirecao("baixo");
+            else if (tecla === "ArrowLeft" || tecla === "a" || tecla === "A") mudarDirecao("esquerda");
+            else if (tecla === "ArrowRight" || tecla === "d" || tecla === "D") mudarDirecao("direita");
         });
 
+        // ===== CAPTURA DOS BOTÕES DE TOQUE (D-Pad na tela) =====
+        document.getElementById("botaoCima").addEventListener("click", () => mudarDirecao("cima"));
+        document.getElementById("botaoBaixo").addEventListener("click", () => mudarDirecao("baixo"));
+        document.getElementById("botaoEsquerda").addEventListener("click", () => mudarDirecao("esquerda"));
+        document.getElementById("botaoDireita").addEventListener("click", () => mudarDirecao("direita"));
+
+        // ===== CAPTURA DE GESTOS DE DESLIZE (SWIPE) NO CANVAS =====
+        // Permite jogar arrastando o dedo na tela, sem precisar usar os botões.
+        // A ideia: guardamos a posição onde o dedo tocou a tela (touchstart) e,
+        // quando o dedo sai da tela (touchend), comparamos com a posição final
+        // para descobrir se o movimento foi mais horizontal ou vertical, e para qual lado.
+        let toqueInicialX = 0;
+        let toqueInicialY = 0;
+        const DISTANCIA_MINIMA_SWIPE = 25; // em pixels; evita disparos acidentais com toques muito curtos
+
+        canvas.addEventListener("touchstart", (evento) => {
+            const toque = evento.changedTouches[0];
+            toqueInicialX = toque.clientX;
+            toqueInicialY = toque.clientY;
+        }, { passive: true });
+
+        canvas.addEventListener("touchend", (evento) => {
+            const toque = evento.changedTouches[0];
+            const diferencaX = toque.clientX - toqueInicialX;
+            const diferencaY = toque.clientY - toqueInicialY;
+
+            // Verifica se o movimento horizontal foi maior que o vertical, ou vice-versa
+            if (Math.abs(diferencaX) > Math.abs(diferencaY)) {
+                // Movimento predominantemente HORIZONTAL
+                if (Math.abs(diferencaX) > DISTANCIA_MINIMA_SWIPE) {
+                    mudarDirecao(diferencaX > 0 ? "direita" : "esquerda");
+                }
+            } else {
+                // Movimento predominantemente VERTICAL
+                if (Math.abs(diferencaY) > DISTANCIA_MINIMA_SWIPE) {
+                    mudarDirecao(diferencaY > 0 ? "baixo" : "cima");
+                }
+            }
+        }, { passive: true });
+
         // ===== BOTÃO DE REINICIAR =====
-        // Quando o botão é clicado, chama a função que reinicia todas as variáveis do jogo
         botaoReiniciar.addEventListener("click", iniciarJogo);
+
+        // ===== RESPONSIVIDADE: recalcula o tamanho do tabuleiro quando a tela mudar =====
+        // Acontece ao girar o celular, redimensionar a janela do navegador, etc.
+        window.addEventListener("resize", ajustarTamanhoDoCanvas);
+        // "orientationchange" é um evento específico para quando o celular é girado
+        window.addEventListener("orientationchange", ajustarTamanhoDoCanvas);
 
         // ===== INÍCIO =====
         // Assim que a página carrega, o jogo começa automaticamente
